@@ -5,3 +5,4 @@ langchain_openai
 neo4j
 textblob
 faiss-cpu
+streamlit

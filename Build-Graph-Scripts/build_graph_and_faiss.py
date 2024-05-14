@@ -27,6 +27,8 @@ chunks = text_splitter.split_documents(docs)
 
 #Collect all embeddings in a list
 embeddings = []
+#Array to store the original text
+texts = []
 
 def get_embedding(llm, text):
     response = llm.embeddings.create(
@@ -35,7 +37,8 @@ def get_embedding(llm, text):
         )
     
     embeddings.append(response.data[0].embedding)
-
+    print(text+"\n")
+    texts.append(text)
     return response.data[0].embedding
 
 # tag::get_course_data[]
@@ -126,7 +129,8 @@ embeddings_array = np.array(embeddings).astype('float32')
 #Dimension of embeddings
 #shape[0] is amount of venctors. shape[1] is amount of dimensions
 dimension = embeddings_array.shape[1]
-index = faiss.IndexFlatL2(dimension)
+index = faiss.IndexFlatL2(dimension) #standard. 
+
 
 #Add vectors to the index
 index.add(embeddings_array) #Perform indexFlat2 (noncompressed) indexing on embeddings_array and add to index
