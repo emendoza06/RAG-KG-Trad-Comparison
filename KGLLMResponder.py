@@ -18,6 +18,8 @@ class GraphLLMResponder:
         )
         self.question = question
         self.top_k = top_k
+        self.context = ""
+        self.cypher = ""
 
         print()
         print("***************************************************************")
@@ -60,28 +62,35 @@ class GraphLLMResponder:
     
     def execute_query_and_respond(self):
         cypher_query = self.get_cypher_query()
+        self.cypher = cypher_query
         print("Cypher query " + cypher_query)
-        neo_output = self.graph.query(cypher_query)
-        print("Neo output " + str(neo_output))
-
-
-        prompt_query = """
-        Context:
-        {Neo4J_Text}
-        Given the above context information, answer the question below. Stick to facts. Response should be generated only from the given context.
-        If the question is not relevant to the context then respond as "I am unable to assist you". Do not respond in any other way.
-
-        Question: 
-        {Question}
-        """
-
-        prompt_query = prompt_query.replace("{Neo4J_Text}", str(neo_output))
-        prompt_query = prompt_query.replace("{Question}", self.question)
         
-        response = self.invoke_llm(prompt_query)
-        print("response is: ")
-        print(response)
-        return response
+        try:
+            neo_output = self.graph.query(cypher_query)
+            self.context = neo_output
+            print("Paragraphs used: ")
+            print(str(self.context))
+        except Exception as e:
+            print(f"An error occured: {e}")
+            neo_output = "" #Set to empty if an error occurs
+        finally:
+            prompt_query = """
+            Context:
+            {Neo4J_Text}
+            Given the above context information, answer the question below. Stick to facts. Response should be generated only from the given context.
+            If the question is not relevant to the context then respond as "I am unable to assist you". Do not respond in any other way.
+
+            Question: 
+            {Question}
+            """
+
+            prompt_query = prompt_query.replace("{Neo4J_Text}", str(neo_output))
+            prompt_query = prompt_query.replace("{Question}", self.question)
+            
+            response = self.invoke_llm(prompt_query)
+            print("response is: ")
+            print(response)
+            return response
                 
                 
 #kg_responder = GraphLLMResponder(user_input)

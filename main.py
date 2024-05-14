@@ -18,7 +18,9 @@ def update_response():
     trad_responder = TradLLMResponder(user_input, top_k) #Create the trad llm responder mechanism
     trad_response = trad_responder.execute_query_and_respond() #Save the response
     st.session_state['response1'] = trad_response
+    st.session_state['trad_context'] = trad_responder.context
     end_time_trad = time.time()
+
     elapsed_time_trad = end_time_trad - start_time_trad
     st.session_state['elapsed_time_trad'] = elapsed_time_trad
 
@@ -27,9 +29,12 @@ def update_response():
     kg_responder = GraphLLMResponder(user_input, top_k) #Create the graph responder mechanism
     kg_response = kg_responder.execute_query_and_respond() #Save the response
     st.session_state['response2'] = kg_response #Directly update session state
+    st.session_state['kg_context'] = kg_responder.context
     end_time_kg = time.time()
     elapsed_time_kg = end_time_kg - start_time_kg
     st.session_state['elapsed_time_kg'] = elapsed_time_kg
+    st.session_state['kg_cypher'] = kg_responder.cypher
+
 
 def main():
     # Custom CSS to include colors and dividing line
@@ -57,7 +62,7 @@ def main():
             width: 25%;
         }
         .divider {
-            height: 500px;
+            height: 550px;
             width: 1px;
             background-color: #000000;
             display: inline-block;
@@ -83,6 +88,9 @@ def main():
         textarea{
             font-size: 20px !important
         }
+        .cypher{
+            font-size: 18px;
+        }
         .metrics{
             margin-top: 30px;
         }
@@ -98,10 +106,31 @@ def main():
     )
 
     # Function to create expandable sections
-    def create_section_expandable(title, content):
+    def create_section_expandable(title, content, key):
         with st.expander(title):
-            # st.text(content)
-            st.markdown(f"<div style='font-size: 20px;'>{content}</div>", unsafe_allow_html=True)
+            #Make a button so when expandable is clicked, the context will update/refresh and populate 
+            #if st.button("Refresh", key=f"refresh_{key}"):
+            st.session_state[key] = st.session_state[key]
+            if isinstance(content, list):
+                #Define a list of colors to loop through so each paragraph used can be a new color
+                if key == "trad_context":
+                    colors = ['#004AAD', '#4998E1', '#004AAD', '#4998E1', '#004AAD', '#4998E1']
+                else:
+                    colors = ['#A80000', '#FF4C4C', '#A80000', '#FF4C4C', '#A80000', '#FF4C4C']
+                #If a list then separate each element with a newline
+                #formatted_content = "<br>".join(map(str, content))
+
+                #Each item gets its own css color
+                formatted_content = ''.join(f"<div style='margin-bottom: 50px; color: {colors[i % len(colors)]};'>"
+                                            f"{item['p.text'] if isinstance(item, dict) and 'p.text' in item else str(item)}"
+                                            for i, item in enumerate(content))
+                #Knowledge graph gives context in dictionary form. Trad gives in list form. If item contains {'p.text': ...}
+                #then we know it's in dictionary format. Check if 'item' is a dictionary and contains the key 'p.text'. If both conditions are true
+                #extract item['p.text'] to just get the value
+                st.markdown(f"<div style='font-size: 20px;'>{formatted_content}</div>", unsafe_allow_html=True)
+            else:
+                #If not a list then print whole string
+                st.markdown(f"<div style='font-size: 20px;'>{content}</div>", unsafe_allow_html=True)
 
     def create_time_section_1(content):
         # st.text(content)
@@ -115,7 +144,7 @@ def main():
     # Page layout
     st.title('LLM Comparison Dashboard')
 
-    col1, divider, col2 = st.columns([5, 0.1, 5])
+    col1, divider, col2 = st.columns([4.5, 0.1, 5])
 
 
 
@@ -132,14 +161,17 @@ def main():
 
 
         #Metrics area
-        st.markdown('<h4 class="metrics">Metrics</h4>', unsafe_allow_html=True)
+        st.markdown('<h4 class="metrics" style="margin-top: 80px">Metrics</h4>', unsafe_allow_html=True)
         #Use session state to hold time response
         if 'elapsed_time_trad' not in st.session_state:
             st.session_state['elapsed_time_trad'] = "Awaiting response..."
-        #display time
+        #Time
         create_time_section_1(st.session_state['elapsed_time_trad'])
 
-        create_section_expandable("Top K (Context used)", "May use more context")
+        #Context
+        if 'trad_context' not in st.session_state:
+            st.session_state['trad_context'] = "Awaiting response..."
+        create_section_expandable("Top K (Context used)", st.session_state['trad_context'], 'trad_context') #key at the end in order to distinguish between expandables
         #create_section("Cost:", "Details about cost efficiency...", key="2")
         
 
@@ -158,6 +190,13 @@ def main():
         #display response in text area
         st.text_area("Response-kg", st.session_state['response2'], height=200, key='response_text_area2', label_visibility="hidden")
 
+        #Cypher
+        if 'kg_cypher' not in st.session_state:
+            st.markdown('<p class="cypher">Cypher: None set.</p>', unsafe_allow_html=True)
+        else:
+            cypher_query = st.session_state['kg_cypher']
+            st.markdown(f'<p class="cypher">Cypher: {cypher_query} </p>', unsafe_allow_html=True)
+
         st.markdown('<h4 class="metrics">Metrics</h4>', unsafe_allow_html=True)
         #Use session state to hold time response
         if 'elapsed_time_kg' not in st.session_state:
@@ -165,7 +204,10 @@ def main():
         #display time
         create_time_section_2(st.session_state['elapsed_time_kg'])
 
-        create_section_expandable("Top K (Context used)", "Should use less context")
+        #Display context used
+        if 'kg_context' not in st.session_state:
+            st.session_state['kg_context'] = "Awaiting response..."
+        create_section_expandable("Top K (Context used)", st.session_state['kg_context'], 'kg_context')
         #create_section("Cost:", "Details about cost efficiency...", key="5")
         
 
