@@ -6,3 +6,5 @@ neo4j
 textblob
 faiss-cpu
 streamlit
+scikit-learn
+numpy

@@ -25,6 +25,7 @@ class TradLLMResponder:
 
         self.llm_embedder = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
         self.question = question
+        self.query_embedding = ""
         self.top_k = top_k
         self.context = ""
 
@@ -63,6 +64,7 @@ class TradLLMResponder:
     
     def execute_query_and_respond(self):
         query_embedding = self.get_embedding()
+        self.query_embedding = query_embedding
         indices, distances = self.search_faiss_index(query_embedding)
         result_texts = [self.plain_text[idx] for idx in indices]
 
@@ -85,6 +87,9 @@ class TradLLMResponder:
         prompt_query = prompt_query.replace("{Chunk_Text}",str(result_texts))
         #Fill question with user question
         prompt_query = prompt_query.replace("{Question}", self.question)
+
+        print("Trad prompt query is: ")
+        print(prompt_query)
 
         return self.get_response_from_GPT(prompt_query)
 

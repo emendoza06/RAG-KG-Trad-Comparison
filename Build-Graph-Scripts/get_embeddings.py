@@ -29,18 +29,20 @@ texts = []
 llm = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 
 #Def for getting embeddings from llm
-def get_embedding(llm, chunk):
+def get_embedding(llm, text):
+    #Normalize text to lowercase
+    lower_text = text.lower()
+    texts.append(lower_text)
     response = llm.embeddings.create(
-        input=chunk.page_content,
+        input=lower_text,
         model="text-embedding-ada-002"
     )
     return np.array(response.data[0].embedding)
 
 #Create embeddings array and build tree
 for chunk in chunks:
-    embedding = get_embedding(llm, chunk)
+    embedding = get_embedding(llm, chunk.page_content)
     embeddings.append(embedding)
-    texts.append(chunk.page_content)
 
 np.save('embeddings.npy', np.array(embeddings))
 with open('paragraph_texts.json', 'w') as f:

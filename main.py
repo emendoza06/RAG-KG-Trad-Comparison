@@ -7,15 +7,18 @@ st.set_page_config(layout="wide")
 
 def update_response():
     user_input = st.session_state.query
-    top_k = st.session_state.top_k
-    print("User entered: ")
+    top_k_trad = st.session_state.top_k_trad
+    top_k_kg = st.session_state.top_k_kg
+    print("\nUser entered: ")
     print(user_input)
-    print("User entered k: ")
-    print(top_k)
+    print("\nUser entered trad k: ")
+    print(top_k_trad)
+    print("\nUser entered kg k: ")
+    print(top_k_kg)
 
     #Traditional response
     start_time_trad = time.time()
-    trad_responder = TradLLMResponder(user_input, top_k) #Create the trad llm responder mechanism
+    trad_responder = TradLLMResponder(user_input, top_k_trad) #Create the trad llm responder mechanism
     trad_response = trad_responder.execute_query_and_respond() #Save the response
     st.session_state['response1'] = trad_response
     st.session_state['trad_context'] = trad_responder.context
@@ -26,7 +29,7 @@ def update_response():
 
     #Knowledge graph response
     start_time_kg = time.time()
-    kg_responder = GraphLLMResponder(user_input, top_k) #Create the graph responder mechanism
+    kg_responder = GraphLLMResponder(user_input, top_k_kg, trad_responder.query_embedding) #Create the graph responder mechanism
     kg_response = kg_responder.execute_query_and_respond() #Save the response
     st.session_state['response2'] = kg_response #Directly update session state
     st.session_state['kg_context'] = kg_responder.context
@@ -114,9 +117,9 @@ def main():
             if isinstance(content, list):
                 #Define a list of colors to loop through so each paragraph used can be a new color
                 if key == "trad_context":
-                    colors = ['#004AAD', '#4998E1', '#004AAD', '#4998E1', '#004AAD', '#4998E1']
+                    colors = ['#004AAD', '#49DCE1', '#004AAD', '#49DCE1', '#004AAD', '#49DCE1']
                 else:
-                    colors = ['#A80000', '#FF4C4C', '#A80000', '#FF4C4C', '#A80000', '#FF4C4C']
+                    colors = ['#8B0F0F', '#FF3030', '#8B0F0F', '#FF3030', '#8B0F0F', '#FF3030']
                 #If a list then separate each element with a newline
                 #formatted_content = "<br>".join(map(str, content))
 
@@ -216,8 +219,14 @@ def main():
     with st.form("query_form"):
         #Input for new queries
         user_input = st.text_input("Ask a question", key="query", autocomplete="off")
-        #Input for top_k
-        top_k = st.text_input("Enter top k amount", key="top_k", autocomplete="off")
+        #Top k columns
+        col3, col4 = st.columns(2)
+        with col3:
+            #Input for top_k_trad
+            top_k_trad = st.text_input("Top K for traditional", key="top_k_trad", autocomplete="off")
+        with col4:
+            #Input for top_k_kg
+            top_k_kg = st.text_input("Top K for KG", key="top_k_kg", autocomplete="off")
         #Submit button for the form
         submit_button = st.form_submit_button("Send", on_click=update_response) #On click, call function to perform kg and trad search + response
 
