@@ -6,13 +6,14 @@ from langchain_openai import ChatOpenAI
 from openai import OpenAI
 from dotenv import load_dotenv
 load_dotenv()
+import tiktoken
 
 def load_texts(path):
         with open(path, 'r') as file:
             return json.load(file)
 
 class TradLLMResponder:
-    def __init__(self,question,top_k):
+    def __init__(self,question,top_k, question_embedding):
         self.llm = ChatOpenAI(
             openai_api_key = os.getenv('OPENAI_API_KEY'),
             temperature= 0
@@ -25,9 +26,15 @@ class TradLLMResponder:
 
         self.llm_embedder = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
         self.question = question
-        self.query_embedding = ""
+        self.question_embedding = question_embedding
         self.top_k = top_k
         self.context = ""
+        #Number of input tokens
+        self.input_tokens = 0
+        #Number of output tokens
+        self.output_tokens = 0
+        #Input + output tokens
+        self.total_tokens = 0
 
         print()
         print("***************************************************************")
@@ -46,9 +53,9 @@ class TradLLMResponder:
         )
         return np.array(response.data[0].embedding)
         
-    def search_faiss_index(self, query_embedding):
+    def search_faiss_index(self):
         #Query FAISS index
-        D, I = self.paragraph_index.search(np.array([query_embedding]), int(self.top_k)) #Search for k nearest neighbors
+        D, I = self.paragraph_index.search(np.array([self.question_embedding]), int(self.top_k)) #Search for k nearest neighbors
         return I[0], D[0] #Indices and distances of the results
 
     def get_response_from_GPT(self, prompt):
@@ -62,10 +69,13 @@ class TradLLMResponder:
         print(response)
         return response
     
+    def num_tokens_from_string(self, string: str, encoding_name: str) -> int:
+        encoding = tiktoken.get_encoding(encoding_name)
+        num_tokens = len(encoding.encode(string))
+        return num_tokens
+    
     def execute_query_and_respond(self):
-        query_embedding = self.get_embedding()
-        self.query_embedding = query_embedding
-        indices, distances = self.search_faiss_index(query_embedding)
+        indices, distances = self.search_faiss_index()
         result_texts = [self.plain_text[idx] for idx in indices]
 
         self.context = result_texts
@@ -76,8 +86,11 @@ class TradLLMResponder:
         prompt_query = """
         Context:
         {Chunk_Text}
-        Given the above context information, answer the question below. Stick to facts. Response should be generated only from the given context.
-        If the question is not relavant to the context then repond as "I am unable to assist you". Do not respond in any other way. 
+        Given the above context information, answer the question below. If there is no context information above, then answer with "I
+        am unable to assist you.". Stick to facts. Response should be generated only from the given context. If the question is 
+        absolutely not relevent to the context then respond as "I am unable to assist you". 
+
+        Respond only with the answer.
 
         Question: 
         {Question}
@@ -91,6 +104,17 @@ class TradLLMResponder:
         print("Trad prompt query is: ")
         print(prompt_query)
 
-        return self.get_response_from_GPT(prompt_query)
+        #Get input tokens
+        self.input_tokens = self.num_tokens_from_string(prompt_query, "cl100k_base")
+
+        final_output = self.get_response_from_GPT(prompt_query)
+        
+        #Get output tokens
+        self.output_tokens = self.num_tokens_from_string(final_output, "cl100k_base")
+
+        #Total input + output tokens
+        self.total_tokens = self.input_tokens + self.output_tokens
+
+        return final_output
 
         

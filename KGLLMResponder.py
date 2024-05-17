@@ -5,9 +5,10 @@ import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 from dotenv import load_dotenv
 load_dotenv()
+import tiktoken
 
 class GraphLLMResponder:
-    def __init__(self, question, top_k, query_embedding):
+    def __init__(self, question, top_k, question_embedding):
         self.llm = ChatOpenAI(
             openai_api_key = os.getenv('OPENAI_API_KEY'),
             temperature= 0
@@ -20,15 +21,24 @@ class GraphLLMResponder:
         )
         self.question = question
         self.top_k = top_k
-        self.query_embedding = query_embedding
+        self.question_embedding = question_embedding
         self.context = ""
         self.cypher = ""
+        #Number of input tokens
+        self.input_tokens = 0
+        #Number of output tokens
+        self.output_tokens = 0
+        #Input + output tokens
+        self.total_tokens = 0
 
         print()
         print("***************************************************************")
         print("KG lLm")
 
-
+    def num_tokens_from_string(self, string: str, encoding_name: str) -> int:
+        encoding = tiktoken.get_encoding(encoding_name)
+        num_tokens = len(encoding.encode(string))
+        return num_tokens
 
     def get_cypher_query(self):
         #Prompt to get cypher statement from the question
@@ -61,6 +71,12 @@ class GraphLLMResponder:
         print("KG LLM Prompt template is: ")
         print(prompt_template)
 
+        #Get input tokens
+        self.input_tokens = self.num_tokens_from_string(prompt_template, "cl100k_base")
+        print("\nInput tokens from cypher prompt")
+        print(self.input_tokens)
+
+
         return self.invoke_llm(prompt_template)
     
     def invoke_llm(self, prompt):
@@ -71,16 +87,19 @@ class GraphLLMResponder:
         return self.llm.invoke(messages).content
     
     def execute_query_and_respond(self):
+        #---------Use LLM to get cypher query----------
         cypher_query = self.get_cypher_query()
         self.cypher = cypher_query
         print("Cypher query " + cypher_query)
+        #Get output tokens
+        self.output_tokens = self.num_tokens_from_string(cypher_query, "cl100k_base")
         
+        #---------Use LLM to get answer from graph----------
         try:
+            #Use cypher to get relevant nodes
             full_neo_output = self.graph.query(cypher_query)
             #If I get a response from the query, then calculate most similar nodes based on node embeddings
             if full_neo_output:
-                print("\nFull neo output structure:")
-                print(full_neo_output[0])
                 texts = []
                 embeddings = []
                 for record in full_neo_output:
@@ -89,7 +108,7 @@ class GraphLLMResponder:
 
                 #Calculate cosine similarity
                 embeddings = np.array(embeddings)
-                similarities = cosine_similarity([self.query_embedding], embeddings)[0] #List of similarity scores against query and list of embeddings
+                similarities = cosine_similarity([self.question_embedding], embeddings)[0] #List of similarity scores against query and list of embeddings
 
                 #Get top k results
                 top_k_int = int(self.top_k)
@@ -106,9 +125,9 @@ class GraphLLMResponder:
             prompt_query = """
                 Context:
                 {Neo4J_Text}
-                Given the above context information, answer the question below. Stick to facts. Response should be generated only from the given context.
-                Try your best to come up with an answer given the context. If the question is absolutely not relavant to the context then repond as 
-                "I am unable to assist you". 
+                Given the above context information, answer the question below. If there is no context information above, then answer with "I
+                am unable to assist you.". Stick to facts. Response should be generated only from the given context. If the question is 
+                absolutely not relevent to the context then respond as "I am unable to assist you". 
 
                 Respond only with the answer.
 
@@ -122,10 +141,25 @@ class GraphLLMResponder:
             print("KG prompt template second pass is: ")
             print(prompt_query)
 
-            response = self.invoke_llm(prompt_query)
+            #Additional input tokens from second call to llm
+            #Get input tokens
+            self.input_tokens += self.num_tokens_from_string(prompt_query, "cl100k_base")
+            print("\nAdding input tokens from second pass")
+            print(self.input_tokens)
+
+            final_output = self.invoke_llm(prompt_query)
             print("response is: ")
-            print(response)
-            return response
+            print(final_output)
+            #Additional output tokens from second call to llm
+            #Get output tokens
+            self.output_tokens += self.num_tokens_from_string(final_output, "cl100k_base")
+            print("\nAdding output tokens from second pass")
+            print(self.output_tokens)
+
+            #Total input + output tokens
+            self.total_tokens = self.input_tokens + self.output_tokens
+            
+            return final_output
                 
                 
 #kg_responder = GraphLLMResponder(user_input)
