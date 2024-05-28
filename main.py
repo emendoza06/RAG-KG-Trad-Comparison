@@ -196,7 +196,7 @@ def main():
     with col1:
 
         #--------RESPONSE AREA------------
-        st.markdown('<div class="blue-box"><h1 class="headers">LLM Traditional Response</h1></div>', unsafe_allow_html=True)
+        st.markdown('<div class="blue-box"><h1 class="headers">LLM with RAG</h1></div>', unsafe_allow_html=True)
         #Use session state to hold the response
         if 'response1' not in st.session_state:
             st.session_state['response1'] = "Awaiting response..."
@@ -236,7 +236,7 @@ def main():
 
     # KNOWLEDGE GRAPH column
     with col2:
-        st.markdown('<div class="red-box"><h1 class="headers">LLM with KG Response</h1></div>', unsafe_allow_html=True)
+        st.markdown('<div class="red-box"><h1 class="headers">LLM with RAG using KG</h1></div>', unsafe_allow_html=True)
         #Use session state to hold the response
         if 'response2' not in st.session_state:
             st.session_state['response2'] = "Awaiting response..."
